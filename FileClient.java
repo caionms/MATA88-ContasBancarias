@@ -12,6 +12,7 @@ public class FileClient {
     public static String SERVER = "127.0.0.1";  // localhost
     public static String CLIENT_RG;
     public static String CLIENT_NAME;
+    public static int CLOCK = 0;
     /*
      * file size temporary hard coded
      * should bigger than the file to be downloaded
@@ -33,6 +34,9 @@ public class FileClient {
         System.out.println("Digite o seu nome:");
         CLIENT_NAME = scanner.next();
 
+        //Incrementa pelo evento de buscar dados do usuário
+        incrementaRelogio();
+
         FileInputStream fis = null;
         BufferedInputStream bis = null;
         OutputStream os = null;
@@ -43,7 +47,7 @@ public class FileClient {
             sock = new Socket(SERVER, SOCKET_PORT);
 
             System.out.println("Connecting...");
-
+            
             //Envia o rg e o nome do cliente para apresentar o saldo
             ObjectOutputStream oos = new ObjectOutputStream(sock.getOutputStream());
             oos.writeUTF(CLIENT_RG);
@@ -141,5 +145,18 @@ public class FileClient {
             ois = new ObjectInputStream(sock.getInputStream());
             System.out.println( ois.readUTF());
         }
+    }
+
+    public static void incrementaRelogio() {
+        CLOCK++;
+        System.out.println("Relógio lógico do cliente: " + CLOCK);
+    }
+
+    public static void atualizaRelogioMensagem(int tempoRecebido) {
+        //Max entre CLOCK atual e CLOCK recebido
+        if(tempoRecebido >= CLOCK) {
+            CLOCK = tempoRecebido;
+        }
+        incrementaRelogio();
     }
 }

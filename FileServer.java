@@ -15,6 +15,8 @@ public class FileServer {
 
     public static String SERVER_DIRECTORY = ".\\server\\";
 
+    public static int CLOCK = 0;
+
     public static void main(String[] args) throws IOException {
         System.out.println("Digite a porta desejada:");
         Scanner scanner = new Scanner(System.in);
@@ -29,19 +31,26 @@ public class FileServer {
             while (true) {
 
                 System.out.println("Aguardando...");
+                incrementaRelogio();
                 try {
                     sock = servsock.accept();
-                    System.out.println("Accepted connection : " + sock);
+                    incrementaRelogio();
+                    System.out.println("Conexão aceita : " + sock);
 
+                    incrementaRelogio();
+                    //TODO: Comparar com timestamp
                     //Recebe o rg e o nome do cliente para apresentar o salldo
                     ois = new ObjectInputStream(sock.getInputStream());
                     String rgCliente = ois.readUTF();
                     String nomeCliente = ois.readUTF();
                     String idCliente = rgCliente + "_" + nomeCliente;
 
+                    incrementaRelogio();
                     //Chama o método que envia o dado do saldo do cliente
                     apresentarSaldo(sock, idCliente, rgCliente, nomeCliente);
 
+                    incrementaRelogio();
+                    //TODO: Comparar com timestamp
                     //Recebe qual ação o cliente quer executar
                     ois = new ObjectInputStream(sock.getInputStream());
                     int acao = ois.readInt();
@@ -77,6 +86,9 @@ public class FileServer {
         ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
         os.writeUTF("Qual valor gostaria de sacar?");
         os.flush();
+
+        incrementaRelogio();
+        //TODO: Comparar com timestamp
 
         //Recebe a resposta com o valor a ser depositado
         ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
@@ -255,5 +267,18 @@ public class FileServer {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public static void incrementaRelogio() {
+        CLOCK++;
+        System.out.println("Relógio lógico do servidor: " + CLOCK);
+    }
+
+    public static void atualizaRelogioMensagem(int tempoRecebido) {
+        //Max entre CLOCK atual e CLOCK recebido
+        if(tempoRecebido >= CLOCK) {
+            CLOCK = tempoRecebido;
+        }
+        incrementaRelogio();
     }
 }

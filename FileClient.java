@@ -13,11 +13,6 @@ public class FileClient {
     public static String CLIENT_RG;
     public static String CLIENT_NAME;
     public static int CLOCK = 0;
-    /*
-     * file size temporary hard coded
-     * should bigger than the file to be downloaded
-     */
-    public final static int FILE_SIZE = 6022386;
 
     private static Scanner scanner = new Scanner(System.in);
 
@@ -37,10 +32,6 @@ public class FileClient {
         //Incrementa pelo evento de buscar dados do usuário
         incrementaRelogio();
 
-        FileInputStream fis = null;
-        BufferedInputStream bis = null;
-        OutputStream os = null;
-        ServerSocket servsock = null;
         Socket sock = null;
 
         try {
@@ -68,30 +59,21 @@ public class FileClient {
             atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
 
             int controle = 0;
-            //Saque: 1_RG_NOME_VALOR
-            //Deposito: 2_RG_NOME_VALOR
-            //Transferencia: 3_RG_NOME_RGDESTINATARIO_NOMEDESTINATARIO_VALOR
-            //Saida: 4
             System.out.println("Escolha a operação:\n1-Saque.\n2-Depósito.\n3-Transferência.\n4-Cancelar.");
             controle = Integer.parseInt(scanner.next());
 
             switch(controle) {
                 case 1:
                 case 2:
-                    System.out.println("Digite o valor:");
-                    Double valorSaqueOuDeposito = Double.valueOf(scanner.next());
-                    fazSaqueOuDeposito(sock, controle, valorSaqueOuDeposito);
+                    fazSaqueOuDeposito(sock, controle);
                     break;
                 case 3:
-                    System.out.println("Digite o RG da conta destino:");
-                    String rgAlvo = scanner.next();
-                    System.out.println("Digite o nome da conta destino:");
-                    String nomeAlvo = scanner.next();
-                    System.out.println("Digite o valor:");
-                    Double valorTransferencia = Double.valueOf(scanner.next());
-                    fazTransferencia(sock, controle, rgAlvo, nomeAlvo, valorTransferencia);
+                    fazTransferencia(sock, controle);
                     break;
                 case 4:
+                    ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
+                    os.writeInt(controle);
+                    os.flush();
                     if (sock != null) sock.close();
                     if (scanner != null) scanner.close();
                     break;
@@ -104,14 +86,16 @@ public class FileClient {
     }
 
     //Entrada: 1/2_xxx (saque/deposito)_valor
-    private static void fazSaqueOuDeposito(Socket sock, int acao, Double valor) throws IOException {
+    private static void fazSaqueOuDeposito(Socket sock, int acao) throws IOException {
+        System.out.println("Digite o valor:");
+        Double valorSaqueOuDeposito = Double.valueOf(scanner.next());
+
         //Incrementa pelo evento de enviar dados pro servidor
         incrementaRelogio();
-
         //Envia os dados da solicitação para o servidor
         ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
         os.writeInt(acao);
-        os.writeDouble(valor);
+        os.writeDouble(valorSaqueOuDeposito);
         os.writeInt(CLOCK);
         os.flush();
 
@@ -124,11 +108,17 @@ public class FileClient {
         incrementaRelogio();
     }
 
-    private static void fazTransferencia(Socket sock, int acao, String rgAlvo, String nomeAlvo, Double valorTransferencia) throws IOException {
+    private static void fazTransferencia(Socket sock, int acao) throws IOException {
+        System.out.println("Digite o RG da conta destino:");
+        String rgAlvo = scanner.next();
+        System.out.println("Digite o nome da conta destino:");
+        String nomeAlvo = scanner.next();
+        System.out.println("Digite o valor:");
+        Double valorTransferencia = Double.valueOf(scanner.next());
+
         //Incrementa pelo evento de enviar dados pro servidor
         incrementaRelogio();
-
-        //Guarda os valores no socket
+        //Envia os dados da solicitação para o servidor
         ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
         os.writeInt(acao);
         os.writeUTF(rgAlvo);

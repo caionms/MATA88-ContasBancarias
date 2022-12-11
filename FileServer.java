@@ -10,21 +10,27 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
-public class FileServer {
+public class FileServer implements Runnable{
     public static int SOCKET_PORT;  // Porta
 
     public static String SERVER_DIRECTORY = ".\\server\\";
 
     public static int CLOCK = 0;
 
+    public static int THREAD_COUNT = 0;
+
+    public Socket cliente;
+
+    public FileServer(Socket cliente){
+        this.cliente = cliente;
+    }
+
     public static void main(String[] args) throws IOException {
         System.out.println("Digite a porta desejada:");
         Scanner scanner = new Scanner(System.in);
         SOCKET_PORT = Integer.parseInt(scanner.next());
 
-        ObjectInputStream ois = null;
         ServerSocket servsock = null;
-        Socket sock = null;
         try {
             servsock = new ServerSocket(SOCKET_PORT);
 
@@ -32,59 +38,72 @@ public class FileServer {
 
                 System.out.println("Aguardando...");
                 incrementaRelogio(); //Incrementa pelo evento de incializar
-                try {
-                    sock = servsock.accept();
-                    System.out.println("Conexão aceita : " + sock);
-                    incrementaRelogio(); //Incrementa pelo evento de aceitar conexão do cliente
 
+                Socket sockCliente = servsock.accept();
+                System.out.println("Conexão aceita : " + sockCliente);
+                incrementaRelogio(); //Incrementa pelo evento de aceitar conexão do cliente
 
-                    //Recebe o rg e o nome do cliente para apresentar o salldo
-                    ois = new ObjectInputStream(sock.getInputStream());
-                    String rgCliente = ois.readUTF();
-                    String nomeCliente = ois.readUTF();
-                    String idCliente = rgCliente + "_" + nomeCliente;
+                // Cria uma thread do servidor para tratar a conexão
+                FileServer tratamento = new FileServer(sockCliente);
+                Thread t = new Thread(tratamento);
+                // Inicia a thread para o cliente conectado
+                t.start();
 
-                    atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
-
-                    //Chama o método que envia o dado do saldo do cliente
-                    apresentarSaldo(sock, idCliente, rgCliente, nomeCliente);
-
-                    incrementaRelogio();
-                    //TODO: Comparar com timestamp
-                    //Recebe qual ação o cliente quer executar
-                    ois = new ObjectInputStream(sock.getInputStream());
-                    int acao = ois.readInt();
-
-                    switch (acao) {
-                        case 1:
-                            //Saque
-                            fazSaque(sock, ois, rgCliente, nomeCliente, idCliente);
-                            break;
-                        case 2:
-                            //Deposito
-                            fazDeposito(sock, ois, rgCliente, nomeCliente, idCliente);
-                            break;
-                        case 3:
-                            //Transferencia
-                            fazTransferencia(sock, ois, rgCliente, nomeCliente, idCliente);
-                            break;
-                        case 4:
-                            if (ois != null) ois.close();
-                            break;
-                    }
-                } catch (ParseException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    if (ois != null) ois.close();
-                    if (sock != null) sock.close();
-                }
             }
         } finally {
             if (servsock != null) servsock.close();
         }
     }
 
-    public static void fazSaque(Socket sock, ObjectInputStream ois, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
+    @Override
+    public void run() {
+        System.out.println("Thread: " + (++THREAD_COUNT));
+
+        ObjectInputStream ois = null;
+
+        //Recebe o rg e o nome do cliente para apresentar o salldo
+        try {
+            ois = new ObjectInputStream(this.cliente.getInputStream());
+
+        String rgCliente = ois.readUTF();
+        String nomeCliente = ois.readUTF();
+        String idCliente = rgCliente + "_" + nomeCliente;
+
+        atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
+
+        //Chama o método que envia o dado do saldo do cliente
+        apresentarSaldo(idCliente, rgCliente, nomeCliente);
+
+        incrementaRelogio();
+        ois = new ObjectInputStream(this.cliente.getInputStream());
+        int acao = ois.readInt();
+
+        switch (acao) {
+            case 1:
+                //Saque
+                fazSaque(ois, rgCliente, nomeCliente, idCliente);
+                break;
+            case 2:
+                //Deposito
+                fazDeposito(ois, rgCliente, nomeCliente, idCliente);
+                break;
+            case 3:
+                //Transferencia
+                fazTransferencia(ois, rgCliente, nomeCliente, idCliente);
+                break;
+            case 4:
+                if (ois != null) ois.close();
+                System.out.println("Thread: " + (--THREAD_COUNT));
+                break;
+        }
+        } catch (IOException | ParseException e) {
+            System.out.println(e.getMessage());
+            System.out.println("Thread: " + (--THREAD_COUNT));
+
+        }
+    }
+
+    public void fazSaque(ObjectInputStream ois, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
         //Recebe a resposta com o valor a ser depositado
         Double valorSaque = ois.readDouble();
         atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
@@ -108,13 +127,13 @@ public class FileServer {
 
         incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
 
-        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
+        ObjectOutputStream os = new ObjectOutputStream(this.cliente.getOutputStream());
         os.writeUTF(resposta.toString());
         os.writeInt(CLOCK);
         os.flush();
     }
 
-    public static void fazDeposito(Socket sock, ObjectInputStream ois, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
+    public void fazDeposito(ObjectInputStream ois, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
         //Recebe a resposta com o valor a ser depositado
         Double valorDeposito = ois.readDouble();
         atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
@@ -134,13 +153,13 @@ public class FileServer {
 
         incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
 
-        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
+        ObjectOutputStream os = new ObjectOutputStream(this.cliente.getOutputStream());
         os.writeUTF(resposta.toString());
         os.writeInt(CLOCK);
         os.flush();
     }
 
-    public static void fazTransferencia(Socket sock, ObjectInputStream ois, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
+    public void fazTransferencia(ObjectInputStream ois, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
         StringBuilder resposta = new StringBuilder();
 
         //Recebe a resposta com os dados para quem irá transferir
@@ -182,13 +201,13 @@ public class FileServer {
 
         incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
 
-        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
+        ObjectOutputStream os = new ObjectOutputStream(this.cliente.getOutputStream());
         os.writeUTF(resposta.toString());
         os.writeInt(CLOCK);
         os.flush();
     }
 
-    public static void apresentarSaldo(Socket sock, String idCliente, String rgCliente, String nomeCliente) throws IOException, ParseException {
+    public void apresentarSaldo(String idCliente, String rgCliente, String nomeCliente) throws IOException, ParseException {
         StringBuilder resposta = new StringBuilder();
         Double saldoCliente = null;
 
@@ -215,7 +234,7 @@ public class FileServer {
 
         incrementaRelogio(); //Incrementa pelo evento de enviar mensagem pro cliente
 
-        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
+        ObjectOutputStream os = new ObjectOutputStream(this.cliente.getOutputStream());
         os.writeUTF(resposta.toString());
         os.writeInt(CLOCK);
         os.flush();

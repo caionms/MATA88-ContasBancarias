@@ -31,21 +31,21 @@ public class FileServer {
             while (true) {
 
                 System.out.println("Aguardando...");
-                incrementaRelogio();
+                incrementaRelogio(); //Incrementa pelo evento de incializar
                 try {
                     sock = servsock.accept();
-                    incrementaRelogio();
                     System.out.println("Conexão aceita : " + sock);
+                    incrementaRelogio(); //Incrementa pelo evento de aceitar conexão do cliente
 
-                    incrementaRelogio();
-                    //TODO: Comparar com timestamp
+
                     //Recebe o rg e o nome do cliente para apresentar o salldo
                     ois = new ObjectInputStream(sock.getInputStream());
                     String rgCliente = ois.readUTF();
                     String nomeCliente = ois.readUTF();
                     String idCliente = rgCliente + "_" + nomeCliente;
 
-                    incrementaRelogio();
+                    atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
+
                     //Chama o método que envia o dado do saldo do cliente
                     apresentarSaldo(sock, idCliente, rgCliente, nomeCliente);
 
@@ -58,15 +58,18 @@ public class FileServer {
                     switch (acao) {
                         case 1:
                             //Saque
-                            fazSaque(sock, rgCliente, nomeCliente, idCliente);
+                            fazSaque(sock, ois, rgCliente, nomeCliente, idCliente);
                             break;
                         case 2:
                             //Deposito
-                            fazDeposito(sock, rgCliente, nomeCliente, idCliente);
+                            fazDeposito(sock, ois, rgCliente, nomeCliente, idCliente);
                             break;
                         case 3:
                             //Transferencia
-                            fazTransferencia(sock, rgCliente, nomeCliente, idCliente);
+                            fazTransferencia(sock, ois, rgCliente, nomeCliente, idCliente);
+                            break;
+                        case 4:
+                            if (ois != null) ois.close();
                             break;
                     }
                 } catch (ParseException e) {
@@ -81,25 +84,16 @@ public class FileServer {
         }
     }
 
-    public static void fazSaque(Socket sock, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
-        //Pergunta ao cliente qual valor a ser depositado
-        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
-        os.writeUTF("Qual valor gostaria de sacar?");
-        os.flush();
-
-        incrementaRelogio();
-        //TODO: Comparar com timestamp
-
+    public static void fazSaque(Socket sock, ObjectInputStream ois, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
         //Recebe a resposta com o valor a ser depositado
-        ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
         Double valorSaque = ois.readDouble();
+        atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
 
         //Busca o saldo cliente
         JSONObject jsonObject = recuperaArquivoJson();
         Double saldoCliente = (Double) jsonObject.get(idCliente);
 
         StringBuilder resposta = new StringBuilder();
-
         if(saldoCliente < valorSaque) {
             resposta.append("O saldo é insuficiente na conta do cliente " + nomeCliente + " de RG " + rgCliente + ".");
         }
@@ -110,20 +104,20 @@ public class FileServer {
             resposta.append("\nO saldo do cliente " + nomeCliente + " de RG " + rgCliente + " é: " + saldoCliente);
         }
 
-        os = new ObjectOutputStream(sock.getOutputStream());
+        incrementaRelogio(); //Incrementa pelo evento de saque
+
+        incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
+
+        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
         os.writeUTF(resposta.toString());
+        os.writeInt(CLOCK);
         os.flush();
     }
 
-    public static void fazDeposito(Socket sock, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
-        //Pergunta ao cliente qual valor a ser depositado
-        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
-        os.writeUTF("Qual valor gostaria de depositar?");
-        os.flush();
-
+    public static void fazDeposito(Socket sock, ObjectInputStream ois, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
         //Recebe a resposta com o valor a ser depositado
-        ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
         Double valorDeposito = ois.readDouble();
+        atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
 
         //Busca o saldo cliente
         JSONObject jsonObject = recuperaArquivoJson();
@@ -135,46 +129,36 @@ public class FileServer {
         StringBuilder resposta = new StringBuilder();
         resposta.append("Foram depositados " + valorDeposito + " reais na conta do cliente " + nomeCliente + " de RG " + rgCliente + "!");
         resposta.append("\nO saldo do cliente " + nomeCliente + " de RG " + rgCliente + " é: " + saldoCliente);
-        os = new ObjectOutputStream(sock.getOutputStream());
+
+        incrementaRelogio(); //Incrementa pelo evento de deposito
+
+        incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
+
+        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
         os.writeUTF(resposta.toString());
+        os.writeInt(CLOCK);
         os.flush();
     }
 
-    public static void fazTransferencia(Socket sock, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
+    public static void fazTransferencia(Socket sock, ObjectInputStream ois, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
         StringBuilder resposta = new StringBuilder();
 
-        //Pergunta ao cliente para quem será transferido
-        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
-        os.writeUTF("Digite o RG do cliente para o qual gostaria de fazer uma trasnferência:");
-        os.writeUTF("Digite o nome do cliente para o qual gostaria de fazer uma trasnferência:");
-        os.flush();
-
         //Recebe a resposta com os dados para quem irá transferir
-        ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
         String rgAlvo = ois.readUTF();
         String nomeAlvo = ois.readUTF();
         String idAlvo = rgAlvo + "_" + nomeAlvo;
+        Double valorTransferencia = ois.readDouble();
+
+        atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
 
         //Testa se a conta existe do alvo
         JSONObject jsonObject = recuperaArquivoJson();
         Double saldoAlvo = (Double) jsonObject.get(idAlvo);
+
         if(saldoAlvo == null) { //Caso não encontre o id do cliente
-            os = new ObjectOutputStream(sock.getOutputStream());
-            os.writeBoolean(false);
-            os.writeUTF("A pessoa " + nomeAlvo + " de RG " + rgAlvo + " não possui uma conta em nosso sistema...");
-            os.flush();
+            resposta.append("A pessoa " + nomeAlvo + " de RG " + rgAlvo + " não possui uma conta em nosso sistema...");
         }
         else{
-            //Pergunta qual valor a ser transferido
-            os = new ObjectOutputStream(sock.getOutputStream());
-            os.writeBoolean(true);
-            os.writeUTF("Conta do cliente " + nomeAlvo + " de RG " + rgAlvo + " encontrada!\nQual valor a ser transferido?");
-            os.flush();
-
-            //Recebe o valor a ser transferido
-            ois = new ObjectInputStream(sock.getInputStream());
-            Double valorTransferencia = ois.readDouble();
-
             Double saldoCliente = (Double) jsonObject.get(idCliente);
             if(saldoCliente < valorTransferencia) {
                 resposta.append("O saldo é insuficiente na conta do cliente " + nomeCliente + " de RG " + rgCliente + ".");
@@ -192,11 +176,16 @@ public class FileServer {
                 resposta.append("\nO saldo do cliente " + nomeCliente + " de RG " + rgCliente + " é: " + saldoCliente +"\nE o saldo do cliente "
                         + nomeAlvo + " de RG " + rgAlvo + " é: " + saldoAlvo);
             }
-
-            os = new ObjectOutputStream(sock.getOutputStream());
-            os.writeUTF(resposta.toString());
-            os.flush();
         }
+
+        incrementaRelogio(); //Incrementa pelo evento de transferencia
+
+        incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
+
+        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
+        os.writeUTF(resposta.toString());
+        os.writeInt(CLOCK);
+        os.flush();
     }
 
     public static void apresentarSaldo(Socket sock, String idCliente, String rgCliente, String nomeCliente) throws IOException, ParseException {
@@ -221,9 +210,14 @@ public class FileServer {
         }
 
         resposta.append("\nO saldo do cliente " + nomeCliente + " de RG " + rgCliente + " é: " + saldoCliente);
+
+        incrementaRelogio(); //Incrementa pelo evento de fazer saque
+
+        incrementaRelogio(); //Incrementa pelo evento de enviar mensagem pro cliente
+
         ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
         os.writeUTF(resposta.toString());
-        os.writeDouble(saldoCliente);
+        os.writeInt(CLOCK);
         os.flush();
     }
 

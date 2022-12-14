@@ -5,25 +5,25 @@ import org.json.simple.parser.ParseException;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Scanner;
+import java.util.concurrent.Semaphore;
 
-public class FileServer implements Runnable{
-    public static int SOCKET_PORT;  // Porta
+public class FileServer implements Runnable {
+    public static int SOCKET_PORT; //Porta
 
-    public static String SERVER_DIRECTORY = ".\\server\\";
+    public static String SERVER_DIRECTORY = ".\\server\\"; //Diretório do servidor
 
-    public static int CLOCK = 0;
+    public static int CLOCK = 0; //Relógio lógico do servidor
 
-    public static int THREAD_COUNT = 0;
+    public static int THREAD_COUNT = 0; //Contador de threads (quantidades de clientes conectados)
 
-    public Socket cliente;
+    public Socket cliente; //Socket para conexão com o cliente
 
-    public FileServer(Socket cliente){
-        this.cliente = cliente;
-    }
+    //Semaforo para permitir apenas 1 thread nas operações de escrita no arquivo JSON
+    private Semaphore mutex = new Semaphore(1);
+
+    //Construtor que permite criacao de thread para cada cliente
+    public FileServer(Socket cliente) {this.cliente = cliente;}
 
     public static void main(String[] args) throws IOException {
         System.out.println("Digite a porta desejada:");
@@ -32,25 +32,25 @@ public class FileServer implements Runnable{
 
         ServerSocket servsock = null;
         try {
+            //Libera para conexão de cliente
             servsock = new ServerSocket(SOCKET_PORT);
 
             while (true) {
-
                 System.out.println("Aguardando...");
                 incrementaRelogio(); //Incrementa pelo evento de incializar
 
-                Socket sockCliente = servsock.accept();
+                Socket sockCliente = servsock.accept(); //Aceita conexão de 1 cliente
                 System.out.println("Conexão aceita : " + sockCliente);
                 incrementaRelogio(); //Incrementa pelo evento de aceitar conexão do cliente
 
-                // Cria uma thread do servidor para tratar a conexão
+                //Cria uma thread do servidor para tratar a conexão
                 FileServer tratamento = new FileServer(sockCliente);
                 Thread t = new Thread(tratamento);
-                // Inicia a thread para o cliente conectado
                 t.start();
 
             }
         } finally {
+            //Fecha o servidor
             if (servsock != null) servsock.close();
         }
     }
@@ -61,41 +61,75 @@ public class FileServer implements Runnable{
 
         ObjectInputStream ois = null;
 
-        //Recebe o rg e o nome do cliente para apresentar o salldo
         try {
+            //Recebe o RG e o nome do cliente para apresentar o saldo
             ois = new ObjectInputStream(this.cliente.getInputStream());
+            String rgCliente = ois.readUTF();
+            String nomeCliente = ois.readUTF();
+            String idCliente = rgCliente + "_" + nomeCliente;
 
-        String rgCliente = ois.readUTF();
-        String nomeCliente = ois.readUTF();
-        String idCliente = rgCliente + "_" + nomeCliente;
+            atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
 
-        atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
+            //Chama o método que envia o dado com o saldo do cliente
+            apresentarSaldo(idCliente, rgCliente, nomeCliente);
 
-        //Chama o método que envia o dado do saldo do cliente
-        apresentarSaldo(idCliente, rgCliente, nomeCliente);
+            incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
 
-        incrementaRelogio();
-        ois = new ObjectInputStream(this.cliente.getInputStream());
-        int acao = ois.readInt();
+            //Faz leitura de qual operação foi escolhida pelo usuario
+            ois = new ObjectInputStream(this.cliente.getInputStream());
+            int acao = ois.readInt();
 
-        switch (acao) {
-            case 1:
-                //Saque
-                fazSaque(ois, rgCliente, nomeCliente, idCliente);
-                break;
-            case 2:
-                //Deposito
-                fazDeposito(ois, rgCliente, nomeCliente, idCliente);
-                break;
-            case 3:
-                //Transferencia
-                fazTransferencia(ois, rgCliente, nomeCliente, idCliente);
-                break;
-            case 4:
-                if (ois != null) ois.close();
-                System.out.println("Thread: " + (--THREAD_COUNT));
-                break;
-        }
+            switch (acao) {
+                case 1:
+                    //Operação de saque
+                    try {
+                        //Tenta "travar" o semaforo e realizar a operação
+                        //Caso já esteja travado, entra em stand-by
+                        mutex.acquire();
+                        fazSaque(ois, rgCliente, nomeCliente, idCliente);
+                    } catch (InterruptedException e) {
+                        System.out.println("Interrompido na conexão: " + cliente);
+                        System.out.println("Thread: " + (--THREAD_COUNT));
+                    } finally {
+                        //Ao concluir, libera o semaforo
+                        mutex.release();
+                    }
+                    break;
+                case 2:
+                    //Operação de deposito
+                    try {
+                        //Tenta "travar" o semaforo e realizar a operação
+                        //Caso já esteja travado, entra em stand-by
+                        mutex.acquire();
+                        fazDeposito(ois, rgCliente, nomeCliente, idCliente);
+                    } catch (InterruptedException e) {
+                        System.out.println("Interrompido na conexão: " + cliente);
+                        System.out.println("Thread: " + (--THREAD_COUNT));
+                    } finally {
+                        //Ao concluir, libera o semaforo
+                        mutex.release();
+                    }
+                    break;
+                case 3:
+                    //Operação de transferencia
+                    try {
+                        //Tenta "travar" o semaforo e realizar a operação
+                        //Caso já esteja travado, entra em stand-by
+                        mutex.acquire();
+                        fazTransferencia(ois, rgCliente, nomeCliente, idCliente);
+                    } catch (InterruptedException e) {
+                        System.out.println("Interrompido na conexão: " + cliente);
+                        System.out.println("Thread: " + (--THREAD_COUNT));
+                    } finally {
+                        //Ao concluir, libera o semaforo
+                        mutex.release();
+                    }
+                    break;
+                case 4:
+                    if (ois != null) ois.close();
+                    System.out.println("Thread: " + (--THREAD_COUNT));
+                    break;
+            }
         } catch (IOException | ParseException e) {
             System.out.println(e.getMessage());
             System.out.println("Thread: " + (--THREAD_COUNT));
@@ -108,15 +142,14 @@ public class FileServer implements Runnable{
         Double valorSaque = ois.readDouble();
         atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
 
-        //Busca o saldo cliente
+        //Busca o saldo cliente no arquivo JSON
         JSONObject jsonObject = recuperaArquivoJson();
         Double saldoCliente = (Double) jsonObject.get(idCliente);
 
         StringBuilder resposta = new StringBuilder();
-        if(saldoCliente < valorSaque) {
+        if (saldoCliente < valorSaque) {
             resposta.append("O saldo é insuficiente na conta do cliente " + nomeCliente + " de RG " + rgCliente + ".");
-        }
-        else {
+        } else {
             saldoCliente -= valorSaque;
             atualizaSaldoCliente(jsonObject, idCliente, saldoCliente);
             resposta.append("Foram sacados " + valorSaque + " reais da conta do cliente " + nomeCliente + " de RG " + rgCliente + "!");
@@ -127,6 +160,7 @@ public class FileServer implements Runnable{
 
         incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
 
+        //Envia mensagem com resposta e o relógio atual
         ObjectOutputStream os = new ObjectOutputStream(this.cliente.getOutputStream());
         os.writeUTF(resposta.toString());
         os.writeInt(CLOCK);
@@ -138,7 +172,7 @@ public class FileServer implements Runnable{
         Double valorDeposito = ois.readDouble();
         atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
 
-        //Busca o saldo cliente
+        //Busca o saldo cliente no arquivo JSON e deposita o valor
         JSONObject jsonObject = recuperaArquivoJson();
         Double saldoCliente = (Double) jsonObject.get(idCliente);
         saldoCliente += valorDeposito;
@@ -153,6 +187,7 @@ public class FileServer implements Runnable{
 
         incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
 
+        //Envia mensagem com resposta e o relógio atual
         ObjectOutputStream os = new ObjectOutputStream(this.cliente.getOutputStream());
         os.writeUTF(resposta.toString());
         os.writeInt(CLOCK);
@@ -162,7 +197,7 @@ public class FileServer implements Runnable{
     public void fazTransferencia(ObjectInputStream ois, String rgCliente, String nomeCliente, String idCliente) throws IOException, ParseException {
         StringBuilder resposta = new StringBuilder();
 
-        //Recebe a resposta com os dados para quem irá transferir
+        //Recebe a mensagem do cliente com os dados para quem irá transferir e o valor
         String rgAlvo = ois.readUTF();
         String nomeAlvo = ois.readUTF();
         String idAlvo = rgAlvo + "_" + nomeAlvo;
@@ -170,19 +205,18 @@ public class FileServer implements Runnable{
 
         atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
 
-        //Testa se a conta existe do alvo
+        //Busca o saldo do alvo no arquivo JSON
         JSONObject jsonObject = recuperaArquivoJson();
         Double saldoAlvo = (Double) jsonObject.get(idAlvo);
 
-        if(saldoAlvo == null) { //Caso não encontre o id do cliente
+        if (saldoAlvo == null) { //Caso não encontre o id do alvo no arquivo JSON
             resposta.append("A pessoa " + nomeAlvo + " de RG " + rgAlvo + " não possui uma conta em nosso sistema...");
-        }
-        else{
+        } else {
+            //Busca o saldo cliente no arquivo JSON
             Double saldoCliente = (Double) jsonObject.get(idCliente);
-            if(saldoCliente < valorTransferencia) {
+            if (saldoCliente < valorTransferencia) {
                 resposta.append("O saldo é insuficiente na conta do cliente " + nomeCliente + " de RG " + rgCliente + ".");
-            }
-            else {
+            } else {
                 //Remove valor da conta original
                 saldoCliente -= valorTransferencia;
                 atualizaSaldoCliente(jsonObject, idCliente, saldoCliente);
@@ -192,7 +226,7 @@ public class FileServer implements Runnable{
 
                 resposta.append("Foram transferidos " + valorTransferencia + " reais da conta do cliente " + nomeCliente + " de RG " + rgCliente
                         + " para a conta do cliente " + nomeAlvo + " de RG " + rgAlvo + "!");
-                resposta.append("\nO saldo do cliente " + nomeCliente + " de RG " + rgCliente + " é: " + saldoCliente +"\nE o saldo do cliente "
+                resposta.append("\nO saldo do cliente " + nomeCliente + " de RG " + rgCliente + " é: " + saldoCliente + "\nE o saldo do cliente "
                         + nomeAlvo + " de RG " + rgAlvo + " é: " + saldoAlvo);
             }
         }
@@ -201,6 +235,7 @@ public class FileServer implements Runnable{
 
         incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
 
+        //Envia mensagem com resposta e o relógio atual
         ObjectOutputStream os = new ObjectOutputStream(this.cliente.getOutputStream());
         os.writeUTF(resposta.toString());
         os.writeInt(CLOCK);
@@ -214,15 +249,14 @@ public class FileServer implements Runnable{
         //Percorre todas as máquinas e salva os arquivos sem repetir
         File server = new File("./server");
         File[] serverFolders = server.listFiles(); //Arquivo JSON com as contas
-        if(serverFolders.length == 0) { //Caso o arquivo JSON não exista
+        if (serverFolders.length == 0) { //Caso o arquivo JSON não exista
             criaArquivoJson(); //Cria o arquivo JSON
-        }
-        else { //Caso o arquivo exista
+        } else { //Caso o arquivo exista
             //Busca o saldo cliente
             JSONObject jsonObject = recuperaArquivoJson();
             saldoCliente = (Double) jsonObject.get(idCliente);
 
-            if(saldoCliente == null) { //Caso não encontre o id do cliente
+            if (saldoCliente == null) { //Caso não encontre o id do cliente
                 saldoCliente = cadastraCliente(jsonObject, idCliente); //Cadastra o cliente
                 resposta.append("O cliente " + nomeCliente + " de RG " + rgCliente + " foi cadastrado com sucesso!");
             }
@@ -234,6 +268,7 @@ public class FileServer implements Runnable{
 
         incrementaRelogio(); //Incrementa pelo evento de enviar mensagem pro cliente
 
+        //Envia mensagem com resposta e o relógio atual
         ObjectOutputStream os = new ObjectOutputStream(this.cliente.getOutputStream());
         os.writeUTF(resposta.toString());
         os.writeInt(CLOCK);
@@ -241,18 +276,17 @@ public class FileServer implements Runnable{
     }
 
     public static JSONObject recuperaArquivoJson() throws IOException, ParseException {
-        //Faz a leitura do arquivo
+        //Faz a leitura do arquivo JSON
         JSONParser parser = new JSONParser();
         Reader reader = new FileReader(SERVER_DIRECTORY + "\\clients.json");
         return (JSONObject) parser.parse(reader);
     }
 
-    //Método que cadastra o cliente, preenchendo seus dados no JSON
+    //Método que cadastra o cliente, preenchendo os seus dados no JSON
     public static Double cadastraCliente(JSONObject jsonObject, String idCliente) {
         Double saldoCliente = Double.valueOf(0);
         //Guardar o id do cliente com saldo zerado no JSON
         atualizaSaldoCliente(jsonObject, idCliente, saldoCliente);
-        System.out.print(jsonObject.toJSONString());
         return saldoCliente;
     }
 
@@ -289,7 +323,7 @@ public class FileServer implements Runnable{
 
     public static void atualizaRelogioMensagem(int tempoRecebido) {
         //Max entre CLOCK atual e CLOCK recebido
-        if(tempoRecebido >= CLOCK) {
+        if (tempoRecebido >= CLOCK) {
             CLOCK = tempoRecebido;
         }
         incrementaRelogio();

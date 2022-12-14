@@ -55,28 +55,30 @@ public class FileClient {
 
             //Escolha de operação
             int controle = 0;
-            System.out.println("Escolha a operação:\n1-Saque.\n2-Depósito.\n3-Transferência.\n4-Consulta de saldo.\n5-Cancelar.");
-            controle = Integer.parseInt(scanner.next());
+            while(controle!=5){
+                System.out.println("Escolha a operação:\n1-Saque.\n2-Depósito.\n3-Transferência.\n4-Consulta de saldo.\n5-Cancelar.");
+                controle = Integer.parseInt(scanner.next());
 
-            switch(controle) {
-                case 1:
-                case 2:
-                    fazSaqueOuDeposito(sock, controle);
-                    break;
-                case 3:
-                    fazTransferencia(sock, controle);
-                    break;
-                case 4:
-                    consultaSaldo(sock, controle);
-                    break;
-                case 5:
-                    //Finaliza a execução do cliente
-                    ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
-                    os.writeInt(controle);
-                    os.flush();
-                    if (sock != null) sock.close();
-                    if (scanner != null) scanner.close();
-                    break;
+                switch(controle) {
+                    case 1:
+                    case 2:
+                        fazSaqueOuDeposito(sock, controle);
+                        break;
+                    case 3:
+                        fazTransferencia(sock, controle);
+                        break;
+                    case 4:
+                        consultaSaldo(sock, controle);
+                        break;
+                    case 5:
+                        //Finaliza a execução do cliente
+                        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
+                        os.writeInt(controle);
+                        os.flush();
+                        if (sock != null) sock.close();
+                        if (scanner != null) scanner.close();
+                        break;
+                }
             }
         }
         finally {

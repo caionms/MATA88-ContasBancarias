@@ -20,7 +20,7 @@ public class FileServer implements Runnable {
     public Socket cliente; //Socket para conexão com o cliente
 
     //Semaforo para permitir apenas 1 thread nas operações de escrita no arquivo JSON
-    private Semaphore mutex = new Semaphore(1);
+    private static Semaphore mutex = new Semaphore(1);
 
     //Construtor que permite criacao de thread para cada cliente
     public FileServer(Socket cliente) {this.cliente = cliente;}

@@ -74,7 +74,9 @@ public class FileClient {
                         //Finaliza a execução do cliente
                         ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
                         os.writeInt(controle);
+                        os.writeInt(CLOCK);
                         os.flush();
+                        System.out.println("Até mais. Volte sempre!");
                         if (sock != null) sock.close();
                         if (scanner != null) scanner.close();
                         break;

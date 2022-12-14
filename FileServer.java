@@ -73,64 +73,69 @@ public class FileServer implements Runnable {
             //Chama o método que envia resposta de acesso ao cliente
             acessoCliente(idCliente, rgCliente, nomeCliente);
 
-            //Faz leitura de qual operação foi escolhida pelo usuario
-            ois = new ObjectInputStream(this.cliente.getInputStream());
-            int acao = ois.readInt();
+            int acao = 0;
+            while(acao != 5){
+                //Faz leitura de qual operação foi escolhida pelo usuario
+                ois = new ObjectInputStream(this.cliente.getInputStream());
+                acao = ois.readInt();
 
-            switch (acao) {
-                case 1:
-                    //Operação de saque
-                    try {
-                        //Tenta "travar" o semaforo e realizar a operação
-                        //Caso já esteja travado, entra em stand-by
-                        mutex.acquire();
-                        fazSaque(ois, rgCliente, nomeCliente, idCliente);
-                    } catch (InterruptedException e) {
-                        System.out.println("Interrompido na conexão: " + cliente);
+                switch (acao) {
+                    case 1:
+                        //Operação de saque
+                        try {
+                            //Tenta "travar" o semaforo e realizar a operação
+                            //Caso já esteja travado, entra em stand-by
+                            mutex.acquire();
+                            fazSaque(ois, rgCliente, nomeCliente, idCliente);
+                        } catch (InterruptedException e) {
+                            System.out.println("Interrompido na conexão: " + cliente);
+                            System.out.println("Thread: " + (--THREAD_COUNT));
+                        } finally {
+                            //Ao concluir, libera o semaforo
+                            mutex.release();
+                        }
+                        break;
+                    case 2:
+                        //Operação de deposito
+                        try {
+                            //Tenta "travar" o semaforo e realizar a operação
+                            //Caso já esteja travado, entra em stand-by
+                            mutex.acquire();
+                            fazDeposito(ois, rgCliente, nomeCliente, idCliente);
+                        } catch (InterruptedException e) {
+                            System.out.println("Interrompido na conexão: " + cliente);
+                            System.out.println("Thread: " + (--THREAD_COUNT));
+                        } finally {
+                            //Ao concluir, libera o semaforo
+                            mutex.release();
+                        }
+                        break;
+                    case 3:
+                        //Operação de transferencia
+                        try {
+                            //Tenta "travar" o semaforo e realizar a operação
+                            //Caso já esteja travado, entra em stand-by
+                            mutex.acquire();
+                            fazTransferencia(ois, rgCliente, nomeCliente, idCliente);
+                        } catch (InterruptedException e) {
+                            System.out.println("Interrompido na conexão: " + cliente);
+                            System.out.println("Thread: " + (--THREAD_COUNT));
+                        } finally {
+                            //Ao concluir, libera o semaforo
+                            mutex.release();
+                        }
+                        break;
+                    case 4:
+                        //Operação de consulta de saldo
+                        apresentarSaldo(idCliente, rgCliente, nomeCliente);
+                        break;
+                    case 5:
+                        atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
+                        if (cliente != null) cliente.close();
+                        if (ois != null) ois.close();
                         System.out.println("Thread: " + (--THREAD_COUNT));
-                    } finally {
-                        //Ao concluir, libera o semaforo
-                        mutex.release();
-                    }
-                    break;
-                case 2:
-                    //Operação de deposito
-                    try {
-                        //Tenta "travar" o semaforo e realizar a operação
-                        //Caso já esteja travado, entra em stand-by
-                        mutex.acquire();
-                        fazDeposito(ois, rgCliente, nomeCliente, idCliente);
-                    } catch (InterruptedException e) {
-                        System.out.println("Interrompido na conexão: " + cliente);
-                        System.out.println("Thread: " + (--THREAD_COUNT));
-                    } finally {
-                        //Ao concluir, libera o semaforo
-                        mutex.release();
-                    }
-                    break;
-                case 3:
-                    //Operação de transferencia
-                    try {
-                        //Tenta "travar" o semaforo e realizar a operação
-                        //Caso já esteja travado, entra em stand-by
-                        mutex.acquire();
-                        fazTransferencia(ois, rgCliente, nomeCliente, idCliente);
-                    } catch (InterruptedException e) {
-                        System.out.println("Interrompido na conexão: " + cliente);
-                        System.out.println("Thread: " + (--THREAD_COUNT));
-                    } finally {
-                        //Ao concluir, libera o semaforo
-                        mutex.release();
-                    }
-                    break;
-                case 4:
-                    //Operação de consulta de saldo
-                    apresentarSaldo(idCliente, rgCliente, nomeCliente);
-                    break;
-                case 5:
-                    if (ois != null) ois.close();
-                    System.out.println("Thread: " + (--THREAD_COUNT));
-                    break;
+                        break;
+                }
             }
         } catch (IOException | ParseException e) {
             System.out.println(e.getMessage());

@@ -70,10 +70,8 @@ public class FileServer implements Runnable {
 
             atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
 
-            //Chama o método que envia o dado com o saldo do cliente
-            apresentarSaldo(idCliente, rgCliente, nomeCliente);
-
-            incrementaRelogio(); //Incrementa pelo evento de envio de mensagem
+            //Chama o método que envia resposta de acesso ao cliente
+            acessoCliente(idCliente, rgCliente, nomeCliente);
 
             //Faz leitura de qual operação foi escolhida pelo usuario
             ois = new ObjectInputStream(this.cliente.getInputStream());
@@ -126,6 +124,10 @@ public class FileServer implements Runnable {
                     }
                     break;
                 case 4:
+                    //Operação de consulta de saldo
+                    apresentarSaldo(idCliente, rgCliente, nomeCliente);
+                    break;
+                case 5:
                     if (ois != null) ois.close();
                     System.out.println("Thread: " + (--THREAD_COUNT));
                     break;
@@ -242,29 +244,47 @@ public class FileServer implements Runnable {
         os.flush();
     }
 
-    public void apresentarSaldo(String idCliente, String rgCliente, String nomeCliente) throws IOException, ParseException {
+    public void acessoCliente(String idCliente, String rgCliente, String nomeCliente) throws IOException, ParseException {
         StringBuilder resposta = new StringBuilder();
-        Double saldoCliente = null;
 
-        //Percorre todas as máquinas e salva os arquivos sem repetir
+        //Acessa o diretório do servidor
         File server = new File("./server");
         File[] serverFolders = server.listFiles(); //Arquivo JSON com as contas
+
         if (serverFolders.length == 0) { //Caso o arquivo JSON não exista
             criaArquivoJson(); //Cria o arquivo JSON
-        } else { //Caso o arquivo exista
-            //Busca o saldo cliente
-            JSONObject jsonObject = recuperaArquivoJson();
-            saldoCliente = (Double) jsonObject.get(idCliente);
-
-            if (saldoCliente == null) { //Caso não encontre o id do cliente
-                saldoCliente = cadastraCliente(jsonObject, idCliente); //Cadastra o cliente
-                resposta.append("O cliente " + nomeCliente + " de RG " + rgCliente + " foi cadastrado com sucesso!");
-            }
         }
 
-        resposta.append("\nO saldo do cliente " + nomeCliente + " de RG " + rgCliente + " é: " + saldoCliente);
+        //Busca o saldo cliente
+        JSONObject jsonObject = recuperaArquivoJson();
+        if(!jsonObject.containsKey(idCliente)) {
+            cadastraCliente(jsonObject, idCliente); //Cadastra o cliente
+            resposta.append("O cliente " + nomeCliente + " de RG " + rgCliente + " foi cadastrado com sucesso!\n");
+        }
 
-        incrementaRelogio(); //Incrementa pelo evento de fazer saque
+        resposta.append("Bem vindo(a), " + nomeCliente + "!");
+
+        incrementaRelogio(); //Incrementa pelo evento de consultar usuario
+
+        incrementaRelogio(); //Incrementa pelo evento de enviar mensagem pro cliente
+
+        //Envia mensagem com resposta e o relógio atual
+        ObjectOutputStream os = new ObjectOutputStream(this.cliente.getOutputStream());
+        os.writeUTF(resposta.toString());
+        os.writeInt(CLOCK);
+        os.flush();
+    }
+
+    public void apresentarSaldo(String idCliente, String rgCliente, String nomeCliente) throws IOException, ParseException {
+        StringBuilder resposta = new StringBuilder();
+
+        //Consulta saldo do cliente (garantia de que o cliente já está cadastrado)
+        JSONObject jsonObject = recuperaArquivoJson();
+        Double saldoCliente = (Double) jsonObject.get(idCliente);
+
+        resposta.append("O saldo do cliente " + nomeCliente + " de RG " + rgCliente + " é: " + saldoCliente);
+
+        incrementaRelogio(); //Incrementa pelo evento de consultar saldo
 
         incrementaRelogio(); //Incrementa pelo evento de enviar mensagem pro cliente
 
@@ -283,11 +303,10 @@ public class FileServer implements Runnable {
     }
 
     //Método que cadastra o cliente, preenchendo os seus dados no JSON
-    public static Double cadastraCliente(JSONObject jsonObject, String idCliente) {
+    public static void cadastraCliente(JSONObject jsonObject, String idCliente) {
         Double saldoCliente = Double.valueOf(0);
         //Guardar o id do cliente com saldo zerado no JSON
         atualizaSaldoCliente(jsonObject, idCliente, saldoCliente);
-        return saldoCliente;
     }
 
     //Método que atualiza o saldo do cliente no arquivo JSON

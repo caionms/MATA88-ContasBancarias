@@ -47,7 +47,7 @@ public class FileClient {
             oos.writeInt(CLOCK);
             oos.flush();
 
-            //Imprime o saldo do cliente
+            //Imprime mensagem de acesso ao cliente
             ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
             System.out.println(ois.readUTF());
 
@@ -55,7 +55,7 @@ public class FileClient {
 
             //Escolha de operação
             int controle = 0;
-            System.out.println("Escolha a operação:\n1-Saque.\n2-Depósito.\n3-Transferência.\n4-Cancelar.");
+            System.out.println("Escolha a operação:\n1-Saque.\n2-Depósito.\n3-Transferência.\n4-Consulta de saldo.\n5-Cancelar.");
             controle = Integer.parseInt(scanner.next());
 
             switch(controle) {
@@ -67,6 +67,9 @@ public class FileClient {
                     fazTransferencia(sock, controle);
                     break;
                 case 4:
+                    consultaSaldo(sock, controle);
+                    break;
+                case 5:
                     //Finaliza a execução do cliente
                     ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
                     os.writeInt(controle);
@@ -131,6 +134,24 @@ public class FileClient {
         atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
 
         incrementaRelogio(); //Incrementa pelo evento fazer transferencia
+    }
+
+    private static void consultaSaldo(Socket sock, int acao) throws IOException {
+        incrementaRelogio(); //Incrementa pelo evento de enviar dados pro servidor
+
+        //Envia os dados da solicitação para o servidor
+        ObjectOutputStream os = new ObjectOutputStream(sock.getOutputStream());
+        os.writeInt(acao);
+        os.writeInt(CLOCK);
+        os.flush();
+
+        //Recebe a resposta com o saldo do cliente
+        ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
+        System.out.println(ois.readUTF());
+
+        atualizaRelogioMensagem(ois.readInt()); //Atualiza clock com mensagem recebida
+
+        incrementaRelogio(); //Incrementa pelo evento de fazer consulta
     }
 
     public static void incrementaRelogio() {
